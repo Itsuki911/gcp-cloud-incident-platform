@@ -1,31 +1,8 @@
 # GCP Cloud Incident Platform
 
-問い合わせ・障害報告・サポートチケットを受け取り、AIによるカテゴリ、重要度、要約の生成を非同期で行うクラウドネイティブシステムの開発環境です。
+問い合わせ・障害報告・サポートチケットを受け取るシステムの開発環境です。現在はAIとGoogle Cloudを使用せず、APIとデータベース処理をローカル環境で実行します。
 
 設計内容は [architecture/initial-design.md](architecture/initial-design.md) を参照してください。
-
-## 確認済みバージョン
-
-| 対象 | 使用バージョン | 許容範囲 |
-| --- | --- | --- |
-| Python | 3.11.15 | 3.11系 |
-| uv | 0.12.3 | Dockerfileで固定 |
-| Git | 2.53.0 | 端末導入済みバージョン |
-| Docker Engine / CLI | 29.7.2 | 端末導入済みバージョン |
-| Docker Compose | 5.3.1 | 端末導入済みバージョン |
-| Google Cloud CLI | 580.0.0 | 端末導入済みバージョン |
-| FastAPI | 0.141.1 | 0.115以上、1.0未満 |
-| Pydantic | 2.13.4 | 2.7以上、3.0未満 |
-| SQLAlchemy | 2.0.52 | 2.0.51以上、2.1未満 |
-| psycopg | 3.3.4 | 3.2以上、4.0未満 |
-| Google Cloud Pub/Sub client | 2.39.1 | 2.31.1以上、3.0未満 |
-| Google Cloud Secret Manager client | 2.30.0 | 2.20以上、3.0未満 |
-| HTTPX2（テスト用） | 2.10.0 | 2.9以上、3.0未満 |
-| PostgreSQL | 17 | Dockerイメージで指定 |
-
-実際に解決された全依存バージョンは `uv.lock` に固定されます。
-
-Pythonライブラリの構成と許容範囲は、2026年8月14日にContext7から取得したFastAPI、SQLAlchemy、Google Cloud Python Clientのドキュメントを基にしています。Docker DesktopとGoogle Cloud CLIの導入方法は、それぞれのWindows向け公式手順に従っています。
 
 ## ローカルセットアップ
 
@@ -38,6 +15,7 @@ Pythonライブラリの構成と許容範囲は、2026年8月14日にContext7�
 PowerShellで次を実行します。
 
 ```powershell
+docker compose up -d db
 .\scripts\setup.ps1
 uv run uvicorn incident_platform.main:app --reload --port 8080
 ```
@@ -46,6 +24,45 @@ uv run uvicorn incident_platform.main:app --reload --port 8080
 
 - APIドキュメント: <http://localhost:8080/docs>
 - ヘルスチェック: <http://localhost:8080/health>
+
+利用できるAPI：
+
+| メソッド | エンドポイント | 内容 |
+| --- | --- | --- |
+| `POST` | `/tickets` | チケットを`queued`で保存 |
+| `GET` | `/tickets` | チケット一覧を新しい順で取得 |
+| `GET` | `/tickets/{id}` | IDを指定してチケットを取得 |
+| `GET` | `/health` | APIの稼働確認 |
+
+## `/docs` での動作確認
+
+1. ブラウザで <http://localhost:8080/docs> を開く。
+2. `POST /tickets` を開き、「Try it out」を押す。
+3. Request bodyへ次のように入力し、「Execute」を押す。
+
+```json
+{
+  "title": "ログインエラー",
+  "raw_question": "ログインすると500エラーになります。"
+}
+```
+
+4. Response bodyに表示された実際の `id` をコピーする。
+
+```json
+{
+  "id": "ここに実際のUUIDが表示されます",
+  "status": "queued"
+}
+```
+
+5. `GET /tickets/{ticket_id}` を開き、「Try it out」を押す。
+6. `ticket_id` にコピーした `id` を貼り付け、「Execute」を押す。
+7. Response bodyに登録内容が表示されることを確認する。
+
+`3fa85f64-5717-4562-b3fc-2c963f66afa6` など、画面に最初から表示されるサンプルUUIDでは登録データを取得できません。必ず `POST /tickets` のResponse bodyに返された `id` を使用してください。
+
+登録済みチケットとIDの一覧は、`GET /tickets` の「Execute」から確認できます。
 
 ## Docker Compose
 
@@ -58,28 +75,15 @@ docker compose up --build
 | サービス | URL・ポート |
 | --- | --- |
 | API | <http://localhost:8080> |
-| Worker | <http://localhost:8081> |
 | PostgreSQL | `localhost:5432` |
 
-停止時は `docker compose down` を実行します。データも削除する場合のみ `docker compose down --volumes` を使用してください。
+停止時は `docker compose down` を実行します。
 
-## Google Cloud CLI
-
-Google Cloud CLIをインストールした後、新しいターミナルを開き、課金が有効なプロジェクトIDを指定して実行します。
+ローカルデータを削除する場合は、次を実行します。
 
 ```powershell
-.\scripts\gcloud-bootstrap.ps1 -ProjectId "YOUR_PROJECT_ID"
+docker compose down --volumes
 ```
-
-このスクリプトは次を設定します。
-
-- 操作対象プロジェクトとCloud Runリージョン
-- ユーザー認証とApplication Default Credentials
-- Cloud Run、Cloud SQL、Pub/Sub、Secret Manager、Artifact Registry、Cloud BuildのAPI
-- `incident-tickets` トピック
-- `incident-tickets-worker` サブスクリプション
-
-Cloud SQLインスタンスとAI APIシークレットは、課金、サイズ、パスワード、AIプロバイダーの選択が必要なため自動作成しません。
 
 ## 開発用コマンド
 

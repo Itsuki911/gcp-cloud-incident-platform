@@ -29,19 +29,5 @@ services:
       db:
         condition: service_healthy
 
-  worker:
-    build:
-      context: .
-    command: ["uvicorn", "incident_platform.worker:app", "--host", "0.0.0.0", "--port", "8081"]
-    environment:
-      APP_ENV: local-docker
-      DATABASE_URL: postgresql+psycopg://incident:incident@db:5432/incidents
-    ports:
-      - "8081:8081"
-    depends_on:
-      db:
-        condition: service_healthy
-
 volumes:
   postgres-data:
-

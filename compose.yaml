@@ -1,0 +1,47 @@
+name: incident-platform
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: incidents
+      POSTGRES_USER: incident
+      POSTGRES_PASSWORD: incident
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U incident -d incidents"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+    environment:
+      APP_ENV: local-docker
+      DATABASE_URL: postgresql+psycopg://incident:incident@db:5432/incidents
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+    command: ["uvicorn", "incident_platform.worker:app", "--host", "0.0.0.0", "--port", "8081"]
+    environment:
+      APP_ENV: local-docker
+      DATABASE_URL: postgresql+psycopg://incident:incident@db:5432/incidents
+    ports:
+      - "8081:8081"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+

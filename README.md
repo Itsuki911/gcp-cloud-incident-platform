@@ -1,8 +1,38 @@
 # GCP Cloud Incident Platform
 
-問い合わせ・障害報告・サポートチケットを受け取るシステムの開発環境です。現在はAIとGoogle Cloudを使用せず、APIとデータベース処理をローカル環境で実行します。
+問い合わせ・障害報告・サポートチケットを受け取るシステムです。ローカル開発に加え、Cloud Run、Cloud SQL、Pub/Sub、Vertex AIを使った非同期処理をGoogle Cloud上で実行します。
 
-設計内容は [architecture/initial-design.md](architecture/initial-design.md) を参照してください。
+設計と現在のGCP設定は、次の資料を参照してください。
+
+- [初期設計](architecture/initial-design.md)
+- [Pub/Subアーキテクチャ](architecture/pub-sub.md)
+- [現在のGCP設定](personal-folder/current-GCP-info.md)
+
+## アーキテクチャ
+
+```text
+ユーザー
+  ↓ POST /tickets
+Incident API（Cloud Run）
+  ├─ Cloud SQLへ保存
+  └─ ticket_idをPub/SubへPublish
+                 ↓
+          AI Worker（Cloud Run）
+            ├─ Vertex AIを呼び出す
+            └─ Cloud SQLを更新
+```
+
+| GCPサービス | 用途 |
+| --- | --- |
+| Cloud Run | Incident APIとAI Workerを実行 |
+| Cloud SQL | チケット情報を保存 |
+| Pub/Sub | APIからWorkerへ処理を配信 |
+| Vertex AI | Geminiモデルを呼び出す |
+| Secret Manager | DB接続情報を管理 |
+| Cloud Build | ソースからコンテナをビルド |
+| Artifact Registry | ビルドしたコンテナを保存 |
+
+AI Workerは一般公開せず、Pub/SubのOIDC認証を使って呼び出します。Pub/Subは最大5回まで再配信し、処理できない通知をDead Letter Topicへ送ります。
 
 ## Cloud Run
 
@@ -35,7 +65,7 @@ uv run uvicorn incident_platform.main:app --reload --port 8080
 
 | メソッド | エンドポイント | 内容 |
 | --- | --- | --- |
-| `POST` | `/tickets` | チケットを`queued`で保存 |
+| `POST` | `/tickets` | チケットを保存し、`ticket_id`をPub/SubへPublish |
 | `GET` | `/tickets` | チケット一覧を新しい順で取得 |
 | `GET` | `/tickets/{id}` | IDを指定してチケットを取得 |
 | `GET` | `/health` | APIの稼働確認 |
@@ -70,6 +100,20 @@ uv run uvicorn incident_platform.main:app --reload --port 8080
 
 登録済みチケットとIDの一覧は、`GET /tickets` の「Execute」から確認できます。
 
+## Cloud Runでの動作確認
+
+1. <https://incident-platform-888088780947.asia-northeast1.run.app/docs> を開く。
+2. `POST /tickets`を実行し、Response bodyの`id`をコピーする。
+3. 数秒待ってから`GET /tickets/{ticket_id}`へ`id`を入力する。
+4. HTTP `200`で登録内容を取得できることを確認する。
+
+APIとWorkerのリクエストは、次のコマンドで確認できます。
+
+```powershell
+gcloud run services logs read incident-platform --region=asia-northeast1 --limit=20
+gcloud run services logs read incident-worker --region=asia-northeast1 --limit=20
+```
+
 ## Docker Compose
 
 Docker Desktopを起動後、次を実行します。
@@ -89,6 +133,73 @@ docker compose up --build
 
 ```powershell
 docker compose down --volumes
+```
+
+## GCPへのデプロイ
+
+以下は、Cloud SQL、Secret、Pub/Sub、IAMが設定済みの環境を更新するコマンドです。初回のPub/Sub設定は[Pub/Subアーキテクチャ](architecture/pub-sub.md)を参照してください。
+
+Incident APIをデプロイします。
+
+```powershell
+gcloud run deploy incident-platform `
+  --source . `
+  --region=asia-northeast1 `
+  --service-account=incident-platform-run@gcp-cloud-incident-platform.iam.gserviceaccount.com `
+  --add-cloudsql-instances=gcp-cloud-incident-platform:asia-northeast1:incident-db `
+  --set-secrets=DATABASE_URL=incident-database-url:2 `
+  --set-env-vars=APP_ENV=production,GOOGLE_CLOUD_PROJECT=gcp-cloud-incident-platform,PUBSUB_TOPIC=incident-tickets `
+  --allow-unauthenticated
+```
+
+AI Workerをデプロイします。
+
+```powershell
+gcloud run deploy incident-worker `
+  --source . `
+  --region=asia-northeast1 `
+  --service-account=incident-worker-run@gcp-cloud-incident-platform.iam.gserviceaccount.com `
+  --add-cloudsql-instances=gcp-cloud-incident-platform:asia-northeast1:incident-db `
+  --set-secrets=DATABASE_URL=incident-database-url:latest `
+  --set-env-vars=APP_ENV=production,GOOGLE_CLOUD_PROJECT=gcp-cloud-incident-platform,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-2.5-flash-lite `
+  --command=uvicorn `
+  --args=incident_platform.worker:app,--host,0.0.0.0,--port,8080 `
+  --timeout=600 `
+  --no-allow-unauthenticated
+```
+
+## 環境変数
+
+| 変数 | 用途 |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL接続先 |
+| `GOOGLE_CLOUD_PROJECT` | Vertex AIとPub/Subのプロジェクト |
+| `GOOGLE_CLOUD_LOCATION` | Geminiの呼び出し場所 |
+| `GEMINI_MODEL` | 使用するGeminiモデル |
+| `PUBSUB_TOPIC` | Publish先のTopic |
+
+`.env`やSecretの実値はGitへ登録しないでください。
+
+## GCPトラブルシューティング
+
+Cloud Runの状態を確認します。
+
+```powershell
+gcloud run services describe incident-platform --region=asia-northeast1
+gcloud run services describe incident-worker --region=asia-northeast1
+```
+
+Pub/Subの配信設定を確認します。
+
+```powershell
+gcloud pubsub subscriptions describe incident-tickets-worker
+gcloud pubsub subscriptions describe incident-tickets-dead-letter-monitor
+```
+
+Cloud SQLの稼働状態を確認します。
+
+```powershell
+gcloud sql instances describe incident-db --format="value(state)"
 ```
 
 ## 開発用コマンド

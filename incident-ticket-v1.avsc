@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "TicketQueued",
+  "namespace": "incident_platform.events",
+  "fields": [
+    { "name": "schema_version", "type": "string", "default": "1" },
+    { "name": "event_id", "type": "string" },
+    { "name": "event_type", "type": "string" },
+    { "name": "ticket_id", "type": "string" },
+    { "name": "created_at", "type": "string" }
+  ]
+}

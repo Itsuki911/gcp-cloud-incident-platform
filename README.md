@@ -4,6 +4,12 @@
 
 設計内容は [architecture/initial-design.md](architecture/initial-design.md) を参照してください。
 
+## Cloud Run
+
+- API: <https://incident-platform-888088780947.asia-northeast1.run.app>
+- APIドキュメント: <https://incident-platform-888088780947.asia-northeast1.run.app/docs>
+- ヘルスチェック: <https://incident-platform-888088780947.asia-northeast1.run.app/health>
+
 ## ローカルセットアップ
 
 前提条件：

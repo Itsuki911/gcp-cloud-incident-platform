@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
@@ -6,8 +7,10 @@ from sqlalchemy.orm import Session, sessionmaker
 from incident_platform.models import Ticket
 
 
-def test_health(client_and_session: tuple[TestClient, sessionmaker[Session]]) -> None:
-    client, _ = client_and_session
+def test_health(
+    client_and_session: tuple[TestClient, sessionmaker[Session], Any],
+) -> None:
+    client, _, _ = client_and_session
 
     response = client.get("/health")
 
@@ -16,9 +19,9 @@ def test_health(client_and_session: tuple[TestClient, sessionmaker[Session]]) ->
 
 
 def test_create_and_get_ticket(
-    client_and_session: tuple[TestClient, sessionmaker[Session]],
+    client_and_session: tuple[TestClient, sessionmaker[Session], Any],
 ) -> None:
-    client, session_factory = client_and_session
+    client, session_factory, publisher = client_and_session
 
     create_response = client.post(
         "/tickets",
@@ -29,6 +32,7 @@ def test_create_and_get_ticket(
     created = create_response.json()
     assert UUID(created["id"])
     assert created["status"] == "queued"
+    assert publisher.ticket_ids == [UUID(created["id"])]
 
     with session_factory() as session:
         ticket = session.get(Ticket, UUID(created["id"]))
@@ -50,9 +54,9 @@ def test_create_and_get_ticket(
 
 
 def test_list_tickets_newest_first(
-    client_and_session: tuple[TestClient, sessionmaker[Session]],
+    client_and_session: tuple[TestClient, sessionmaker[Session], Any],
 ) -> None:
-    client, _ = client_and_session
+    client, _, _ = client_and_session
     client.post("/tickets", json={"title": "first", "raw_question": "first question"})
     client.post("/tickets", json={"title": "second", "raw_question": "second question"})
 
@@ -63,9 +67,9 @@ def test_list_tickets_newest_first(
 
 
 def test_get_unknown_ticket_returns_404(
-    client_and_session: tuple[TestClient, sessionmaker[Session]],
+    client_and_session: tuple[TestClient, sessionmaker[Session], Any],
 ) -> None:
-    client, _ = client_and_session
+    client, _, _ = client_and_session
 
     response = client.get(f"/tickets/{uuid4()}")
 
@@ -74,10 +78,30 @@ def test_get_unknown_ticket_returns_404(
 
 
 def test_create_ticket_rejects_blank_fields(
-    client_and_session: tuple[TestClient, sessionmaker[Session]],
+    client_and_session: tuple[TestClient, sessionmaker[Session], Any],
 ) -> None:
-    client, _ = client_and_session
+    client, _, _ = client_and_session
 
     response = client.post("/tickets", json={"title": "   ", "raw_question": ""})
 
     assert response.status_code == 422
+
+
+# Publish失敗時の応答を確認
+def test_create_ticket_returns_503_when_publish_fails(
+    client_and_session: tuple[TestClient, sessionmaker[Session], Any],
+) -> None:
+    client, session_factory, publisher = client_and_session
+    publisher.error = RuntimeError("Pub/Sub unavailable")
+
+    response = client.post(
+        "/tickets",
+        json={"title": "DB障害", "raw_question": "接続できません。"},
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Ticket queued but Pub/Sub publish failed"}
+    with session_factory() as session:
+        ticket = session.get(Ticket, publisher.ticket_ids[0])
+        assert ticket is not None
+        assert ticket.status == "queued"

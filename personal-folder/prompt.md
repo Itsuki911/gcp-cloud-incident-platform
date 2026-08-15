@@ -1,9 +1,9 @@
-今回の目的
-architecture\initial-design.md
-を基に、src\incident_platform内のpythonファイルの編集・実装してださい。
-その他ファイル関連ファイルの修正・実装も行っていいです。
-今回はAI以外の処理の部分のコードを書いてください。
+今回の目的：
+ticket_idをPub/SubへPublishするコードを作成
 
+質問回答：
+再Publish機能も実装してください。
+それ以外は承諾します。
 
 
 守るべきルール：

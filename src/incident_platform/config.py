@@ -1,7 +1,8 @@
 from functools import lru_cache
-# 関数の戻り値をキャッシュ（記憶）する
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# 関数の戻り値をキャッシュ（記憶）する
 
 
 class Settings(BaseSettings):
@@ -15,6 +16,14 @@ class Settings(BaseSettings):
     #ログ出力レベル
     database_url: str = "postgresql+psycopg://incident:incident@localhost:5432/incidents"
     #DBへの接続URL
+    google_cloud_project: str = "gcp-cloud-incident-platform"
+    # Vertex AIのプロジェクト
+    google_cloud_location: str = "global"
+    # Geminiの呼び出し場所
+    gemini_model: str = "gemini-2.5-flash-lite"
+    # 使用するGeminiモデル
+    pubsub_topic: str = "incident-tickets"
+    # Publish先のTopic名
     model_config = SettingsConfigDict(
         #Pydanticの設定クラスの設定を定義するための辞書
         env_file=".env",

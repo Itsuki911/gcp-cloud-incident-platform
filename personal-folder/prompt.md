@@ -26,3 +26,5 @@ APIのエンドポイントでは、定義がわかるようにすごく簡潔�
 ・確認、質問点（あれば）
 ・MCPを使用した場合は使用したMCPサーバーを箇条書きで書く。
 ・今回実装した部分の処理フローを簡潔にまとめる。
+
+CLoud Run , Cloud SQL, IAM, Cloud Build, rtifact registryの設定。Pythonコードの作成

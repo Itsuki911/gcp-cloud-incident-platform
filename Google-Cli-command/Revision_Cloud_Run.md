@@ -1,20 +1,18 @@
 # Cloud Run Revision操作
 
-## 1. Revisionとは
+## 1. 用語まとめ
 
-Revisionは、Cloud Runへデプロイしたコンテナイメージと実行設定の変更不能なスナップショットです。
+| 用語 | 意味 |
+| --- | --- |
+| Service | 固定URLを持ち、リクエストをRevisionへ振り分ける単位 |
+| Revision | コンテナイメージと実行設定を保存した変更不能な版 |
+| Instance | Revisionを基に実際に起動するコンテナの実体 |
+| Traffic | 各Revisionへ割り当てるリクエストの割合 |
+| Revision Tag | 通常トラフィックを送らず、特定Revisionへ接続する名前 |
+| Rollout | 新Revisionへ段階的にTrafficを移す操作 |
+| Rollback | Trafficを以前のRevisionへ戻す操作 |
 
-サービスへデプロイするか、環境変数、CPU、メモリなどの設定を変更すると、新しいRevisionが作成されます。作成済みRevisionは変更できません。設定を変える場合は、別のRevisionを作成します。
-
-Cloud RunのServiceは固定URLを持ち、受信したリクエストをトラフィック設定に従ってRevisionへ振り分けます。
-
-```text
-Cloud Run Service
-  ├─ 旧Revision
-  └─ 新Revision
-       ↓
-    Instance
-```
+サービスへのデプロイや実行設定の変更により、新しいRevisionが作成されます。作成済みRevisionは変更できません。
 
 ## 2. このプロジェクトでの用途
 

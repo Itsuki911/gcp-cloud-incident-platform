@@ -15,6 +15,7 @@ from incident_platform.ai_worker import (
     SYSTEM_PROMPT,
     Category,
     GeminiTicketAnalyzer,
+    LocalTicketAnalyzer,
     Severity,
     TicketAnalysis,
 )
@@ -181,3 +182,14 @@ def test_gemini_analyzer_uses_vertex_client() -> None:
     assert request["contents"] == "タイトル: DB遅延\n問い合わせ: 接続に時間がかかります。"
     assert request["config"].system_instruction == SYSTEM_PROMPT
     assert request["config"].response_schema == TicketAnalysis
+
+
+# ローカル固定分析を確認
+def test_local_analyzer_returns_fixed_result() -> None:
+    analyzer = LocalTicketAnalyzer()
+
+    result = analyzer.analyze("接続確認", "ローカル処理を確認します。")
+
+    assert result.category == Category.other
+    assert result.severity == Severity.low
+    assert result.summary == "ローカル環境の固定解析結果です。"

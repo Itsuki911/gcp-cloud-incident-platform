@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     # Geminiの呼び出し場所
     gemini_model: str = "gemini-2.5-flash-lite"
     # 使用するGeminiモデル
+    use_local_analyzer: bool = False
+    # ローカル分析を切り替える
     pubsub_topic: str = "incident-tickets"
     # Publish先のTopic名
     model_config = SettingsConfigDict(

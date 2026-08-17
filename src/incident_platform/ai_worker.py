@@ -49,6 +49,17 @@ class TicketAnalyzer(Protocol):
     def analyze(self, title: str, raw_question: str) -> TicketAnalysis: ...
 
 
+# ローカル用の固定分析
+class LocalTicketAnalyzer:
+    # 固定の分析結果を返す
+    def analyze(self, title: str, raw_question: str) -> TicketAnalysis:
+        return TicketAnalysis(
+            category=Category.other,
+            severity=Severity.low,
+            summary="ローカル環境の固定解析結果です。",
+        )
+
+
 # Geminiで問い合わせを分析
 class GeminiTicketAnalyzer:
     # Vertex AI接続を初期化

@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from incident_platform.ai_worker import GeminiTicketAnalyzer, TicketAnalyzer
+from incident_platform.ai_worker import GeminiTicketAnalyzer, LocalTicketAnalyzer, TicketAnalyzer
 from incident_platform.config import get_settings
 from incident_platform.db import Base, SessionLocal, engine, get_session
 from incident_platform.models import Ticket
@@ -60,10 +60,15 @@ def create_worker_app(
         Base.metadata.create_all(bind=database_engine)
         yield
 
-    ticket_analyzer = analyzer or GeminiTicketAnalyzer(
-        project=settings.google_cloud_project,
-        location=settings.google_cloud_location,
-        model=settings.gemini_model,
+    # 実行環境の分析処理を選ぶ
+    ticket_analyzer = analyzer or (
+        LocalTicketAnalyzer()
+        if settings.use_local_analyzer
+        else GeminiTicketAnalyzer(
+            project=settings.google_cloud_project,
+            location=settings.google_cloud_location,
+            model=settings.gemini_model,
+        )
     )
     application = FastAPI(title="Incident AI Worker", version="0.1.0", lifespan=lifespan)
     application.state.session_factory = session_factory

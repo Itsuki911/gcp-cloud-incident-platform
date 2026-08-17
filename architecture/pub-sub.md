@@ -545,6 +545,34 @@ DLQ Subscriptionを確認します。
 gcloud pubsub subscriptions describe incident-tickets-dead-letter-monitor
 ```
 
+### 4.12 Pub/Sub Emulatorの導入
+
+Pub/Sub EmulatorをGoogle Cloud CLIへ追加します。Composeでは公式Emulatorイメージを使うため、この操作はCLIで直接起動して学習する場合だけ実行します。
+
+```powershell
+gcloud components install pubsub-emulator
+```
+
+### 4.13 Pub/Sub Emulatorの起動
+
+ローカル専用プロジェクト名を指定してEmulatorを起動します。実在するGoogle Cloudプロジェクトは使用しません。
+
+```powershell
+gcloud beta emulators pubsub start `
+  --project=local-project `
+  --host-port=127.0.0.1:8085
+```
+
+### 4.14 Pub/Sub Emulatorの接続設定確認
+
+Emulatorを起動したまま別のPowerShellで、必要な環境変数を表示します。
+
+```powershell
+gcloud beta emulators pubsub env-init
+```
+
+Composeでは`PUBSUB_EMULATOR_HOST=pubsub:8085`を設定します。TopicとPush SubscriptionはPythonクライアントで自動作成します。Emulatorは`gcloud pubsub`コマンドに対応しないため、Topic作成には使用しません。
+
 ## 参考資料
 
 - [gcloud Pub/Subリファレンス](https://docs.cloud.google.com/sdk/gcloud/reference/pubsub)
@@ -555,3 +583,4 @@ gcloud pubsub subscriptions describe incident-tickets-dead-letter-monitor
 - [Dead-letter Topic](https://docs.cloud.google.com/pubsub/docs/dead-letter-topics)
 - [Retry Policy](https://docs.cloud.google.com/pubsub/docs/subscription-retry-policy)
 - [メッセージ暗号化](https://docs.cloud.google.com/pubsub/docs/encryption?hl=ja)
+- [Pub/Sub Emulator](https://docs.cloud.google.com/pubsub/docs/emulator)

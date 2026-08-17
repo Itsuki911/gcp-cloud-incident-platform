@@ -116,18 +116,50 @@ gcloud run services logs read incident-worker --region=asia-northeast1 --limit=2
 
 ## Docker Compose
 
-Docker Desktopを起動後、次を実行します。
+Docker Desktopを起動し、状態を確認します。
+
+```powershell
+docker desktop status
+```
+
+`running`と表示されたら、プロジェクトフォルダで次を実行します。PostgreSQL、Pub/Sub Emulator、Worker、APIが起動し、TopicとPush Subscriptionが自動作成されます。
 
 ```powershell
 docker compose up --build
 ```
 
+バックグラウンドで起動する場合は、次を実行します。
+
+```powershell
+docker compose up --build -d
+```
+
 | サービス | URL・ポート |
 | --- | --- |
 | API | <http://localhost:8080> |
+| Worker | <http://localhost:8081> |
+| Pub/Sub Emulator | `localhost:8085` |
 | PostgreSQL | `localhost:5432` |
 
-停止時は `docker compose down` を実行します。
+起動状態は次のコマンドで確認します。
+
+```powershell
+docker compose ps
+```
+
+APIドキュメントの`POST /tickets`を実行後、`GET /tickets/{ticket_id}`で`status`が`completed`になることを確認します。ローカルWorkerはVertex AIを呼び出さず、固定の分析結果を保存します。
+
+ログを確認する場合は、次を実行します。
+
+```powershell
+docker compose logs -f api worker pubsub
+```
+
+停止時は次を実行します。PostgreSQLのデータは保持されます。
+
+```powershell
+docker compose down
+```
 
 ローカルデータを削除する場合は、次を実行します。
 

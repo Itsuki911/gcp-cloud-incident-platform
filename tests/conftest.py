@@ -27,9 +27,7 @@ class StubPublisher:
 
 
 @pytest.fixture
-def client_and_session() -> Iterator[
-    tuple[TestClient, sessionmaker[Session], StubPublisher]
-]:
+def client_and_session() -> Iterator[tuple[TestClient, sessionmaker[Session], StubPublisher]]:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},

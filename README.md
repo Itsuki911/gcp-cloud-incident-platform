@@ -68,7 +68,14 @@ uv run uvicorn incident_platform.main:app --reload --port 8080
 | `POST` | `/tickets` | チケットを保存し、`ticket_id`をPub/SubへPublish |
 | `GET` | `/tickets` | チケット一覧を新しい順で取得 |
 | `GET` | `/tickets/{id}` | IDを指定してチケットを取得 |
+| `POST` | `/tickets/{ticket_id}/attachments/uploads` | 添付アップロードを開始 |
+| `POST` | `/tickets/{ticket_id}/attachments/{attachment_id}/complete` | 添付アップロードを完了 |
+| `GET` | `/tickets/{ticket_id}/attachments` | 添付一覧を取得 |
+| `GET` | `/tickets/{ticket_id}/attachments/{attachment_id}` | 添付をダウンロード |
+| `DELETE` | `/tickets/{ticket_id}/attachments/{attachment_id}` | 添付を削除 |
 | `GET` | `/health` | APIの稼働確認 |
+
+添付機能の手動確認は[Cloud Storage手順](Google-Cli-command/Cloud_Storage.md)を参照してください。
 
 ## `/docs` での動作確認
 
@@ -180,7 +187,7 @@ gcloud run deploy incident-platform `
   --service-account=incident-platform-run@gcp-cloud-incident-platform.iam.gserviceaccount.com `
   --add-cloudsql-instances=gcp-cloud-incident-platform:asia-northeast1:incident-db `
   --set-secrets=DATABASE_URL=incident-database-url:2 `
-  --set-env-vars=APP_ENV=production,GOOGLE_CLOUD_PROJECT=gcp-cloud-incident-platform,PUBSUB_TOPIC=incident-tickets `
+  --set-env-vars=APP_ENV=production,GOOGLE_CLOUD_PROJECT=gcp-cloud-incident-platform,PUBSUB_TOPIC=incident-tickets,ATTACHMENT_BUCKET=gcp-cloud-incident-platform-ticket-attachments-888088780947 `
   --allow-unauthenticated
 ```
 
@@ -209,6 +216,7 @@ gcloud run deploy incident-worker `
 | `GOOGLE_CLOUD_LOCATION` | Geminiの呼び出し場所 |
 | `GEMINI_MODEL` | 使用するGeminiモデル |
 | `PUBSUB_TOPIC` | Publish先のTopic |
+| `ATTACHMENT_BUCKET` | 添付ファイル保存先Bucket |
 
 `.env`やSecretの実値はGitへ登録しないでください。
 

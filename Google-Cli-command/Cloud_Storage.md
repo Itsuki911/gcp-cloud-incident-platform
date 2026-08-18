@@ -304,3 +304,108 @@ Objectが残っている場合は削除できません。BucketとObjectを削�
 - [Google Cloud Free Tier](https://docs.cloud.google.com/free/docs/free-cloud-features?hl=ja)
 - [Cloud Storageの料金](https://cloud.google.com/storage/pricing?hl=ja)
 - [gcloud storageリファレンス](https://docs.cloud.google.com/sdk/gcloud/reference/storage)
+
+## 7. 添付APIの手動動作確認
+
+`sample-attachment.pdf`を使用し、登録、アップロード、取得、削除を確認します。複数ファイルは事前にZIPへまとめます。
+
+### 7.1 ローカルADCを準備
+
+Pub/Sub Emulatorが認証用ポート`8085`と競合する場合だけ、一時停止します。
+
+```powershell
+docker compose stop pubsub
+```
+
+ADCを作成します。このgcloudコマンドは人間が実行します。
+
+```powershell
+gcloud auth application-default login
+```
+
+ADCとComposeを確認します。
+
+```powershell
+Test-Path "$env:APPDATA\gcloud\application_default_credentials.json"
+docker compose up --build -d
+docker compose ps
+```
+
+`Test-Path`が`True`、APIが起動状態であることを確認します。
+
+### 7.2 チケットとアップロードURLを作成
+
+`http://localhost:8080/docs`で`POST /tickets`を実行し、返された`id`を`ticket_id`として控えます。
+
+ファイルサイズを確認します。
+
+```powershell
+$filePath = (Resolve-Path ".\sample-attachment.pdf").Path
+$size = (Get-Item -LiteralPath $filePath).Length
+$size
+```
+
+`POST /tickets/{ticket_id}/attachments/uploads`へ次を入力します。`size`は実際の値に置き換えます。
+
+```json
+{
+  "filename": "sample-attachment.pdf",
+  "content_type": "application/pdf",
+  "size": 14123
+}
+```
+
+HTTP `201`を確認し、実際の`id`を`attachment_id`、`upload_url`を送信先として控えます。API仕様欄の`"string"`ではなく、Server responseの値を使用します。
+
+### 7.3 Cloud Storageへアップロード
+
+```powershell
+$uploadUrl = "実際のupload_url"
+curl.exe --fail-with-body -X PUT `
+  -H "Content-Type: application/pdf" `
+  -H "Content-Length: $size" `
+  --upload-file "$filePath" `
+  "$uploadUrl"
+```
+
+`POST /tickets/{ticket_id}/attachments/{attachment_id}/complete`を実行し、`status`が`ready`であることを確認します。
+
+`GET /tickets/{ticket_id}/attachments`で、ファイル名、Content-Type、サイズ、`ready`を確認します。
+
+### 7.4 Objectとダウンロードを確認
+
+```powershell
+$ticketId = "実際のticket_id"
+$attachmentId = "実際のattachment_id"
+$apiBase = "http://localhost:8080"
+
+gcloud storage ls `
+  "gs://gcp-cloud-incident-platform-ticket-attachments-888088780947/tickets/$ticketId/**" `
+  --long
+
+curl.exe --fail-with-body `
+  "$apiBase/tickets/$ticketId/attachments/$attachmentId" `
+  --output ".\manual-test-download.pdf"
+
+Get-FileHash ".\sample-attachment.pdf"
+Get-FileHash ".\manual-test-download.pdf"
+```
+
+Cloud StorageにObjectが存在し、2つのHashが一致することを確認します。
+
+### 7.5 添付を削除
+
+`DELETE /tickets/{ticket_id}/attachments/{attachment_id}`を実行し、HTTP `204`を確認します。
+
+```powershell
+curl.exe "$apiBase/tickets/$ticketId/attachments"
+gcloud storage ls `
+  "gs://gcp-cloud-incident-platform-ticket-attachments-888088780947/tickets/$ticketId/**" `
+  --long
+```
+
+API一覧と通常のObject一覧から対象が消えていることを確認します。Soft Delete期間中は復元可能です。
+
+### 7.6 確認実績
+
+2026-08-18にPDFで登録、Cloud Storage保存、APIダウンロード、Hash一致、削除を確認済みです。

@@ -99,6 +99,16 @@ services:
       GOOGLE_CLOUD_PROJECT: local-project
       PUBSUB_EMULATOR_HOST: pubsub:8085
       PUBSUB_TOPIC: incident-tickets
+      GOOGLE_APPLICATION_CREDENTIALS: /var/run/google/adc.json
+      ATTACHMENT_BUCKET: gcp-cloud-incident-platform-ticket-attachments-888088780947
+    # ADCを読み取り専用で共有
+    volumes:
+      - type: bind
+        source: ${APPDATA}/gcloud/application_default_credentials.json
+        target: /var/run/google/adc.json
+        read_only: true
+        bind:
+          create_host_path: false
     # APIをホストへ公開
     ports:
       - "8080:8080"

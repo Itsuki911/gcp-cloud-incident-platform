@@ -22,6 +22,10 @@ class Ticket(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
     )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
 
 # 添付情報を保存する

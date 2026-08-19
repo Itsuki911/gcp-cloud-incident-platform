@@ -11,6 +11,7 @@ description = "Cloud-native AI incident and support triage platform"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    "alembic>=1.18,<2.0",
     "fastapi[standard]>=0.115,<1.0",
     "google-cloud-pubsub>=2.39,<3.0",
     "google-cloud-storage>=3.3,<4.0",

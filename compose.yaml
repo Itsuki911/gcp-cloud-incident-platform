@@ -25,6 +25,17 @@ services:
       timeout: 5s
       retries: 10
 
+  # アプリ起動前にDBスキーマを最新化
+  migrate:
+    build:
+      context: .
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://incident:incident@db:5432/incidents
+    depends_on:
+      db:
+        condition: service_healthy
+
   # Pub/Subをローカルで再現
   pubsub:
     # 公式Emulatorイメージを使用
@@ -84,8 +95,8 @@ services:
       timeout: 5s
       retries: 10
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   # FastAPIアプリケーション
   api:
@@ -114,8 +125,8 @@ services:
       - "8080:8080"
     # データベース起動後にAPIを開始
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       pubsub-init:
         condition: service_completed_successfully
 

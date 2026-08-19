@@ -18,5 +18,6 @@ if (-not (Test-Path -LiteralPath ".env")) {
 }
 
 uv run python --version
-uv run python -c "import fastapi, pydantic, sqlalchemy; print(f'FastAPI {fastapi.__version__}'); print(f'Pydantic {pydantic.__version__}'); print(f'SQLAlchemy {sqlalchemy.__version__}')"
+uv run python -c "import alembic, fastapi, pydantic, sqlalchemy; print(f'Alembic {alembic.__version__}'); print(f'FastAPI {fastapi.__version__}'); print(f'Pydantic {pydantic.__version__}'); print(f'SQLAlchemy {sqlalchemy.__version__}')"
+uv run alembic upgrade head
 uv run pytest

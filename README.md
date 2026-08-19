@@ -56,6 +56,9 @@ docker compose up -d db
 uv run uvicorn incident_platform.main:app --reload --port 8080
 ```
 
+`setup.ps1`は依存関係の同期後に`alembic upgrade head`を実行し、DBを最新状態にします。
+以前のバージョンで作成済みのDBを初めてAlembic管理へ移す場合は、テーブル構造が現在のモデルと一致することを確認してから、一度だけ`uv run alembic stamp 0001_initial`を実行してください。
+
 起動後は以下を確認できます。
 
 - APIドキュメント: <http://localhost:8080/docs>
@@ -147,6 +150,28 @@ docker compose up --build -d
 | Worker | <http://localhost:8081> |
 | Pub/Sub Emulator | `localhost:8085` |
 | PostgreSQL | `localhost:5432` |
+
+`migrate`サービスがDBの起動後に`alembic upgrade head`を実行し、完了後にAPIとWorkerが起動します。
+
+## DBマイグレーション
+
+接続先は`.env`の`DATABASE_URL`です。主なコマンドは次のとおりです。
+
+```powershell
+# 現在のリビジョンを確認
+uv run alembic current
+
+# モデル変更から新しいマイグレーションを生成
+uv run alembic revision --autogenerate -m "変更内容"
+
+# 最新状態へ更新
+uv run alembic upgrade head
+
+# 1つ前へ戻す
+uv run alembic downgrade -1
+```
+
+自動生成後は、`migrations/versions`に作られたファイルを確認してから適用してください。
 
 起動状態は次のコマンドで確認します。
 

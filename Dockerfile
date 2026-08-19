@@ -18,6 +18,9 @@ RUN pip install --no-cache-dir "uv==${UV_VERSION}"
 
 # 依存関係ファイルをコピー
 COPY pyproject.toml uv.lock README.md ./
+# DBマイグレーション設定をコピー
+COPY alembic.ini ./
+COPY migrations ./migrations
 # アプリケーションコードをコピー
 COPY src ./src
 # 本番用の依存関係をインストール

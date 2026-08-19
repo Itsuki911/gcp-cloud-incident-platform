@@ -46,7 +46,9 @@ def create_app(
     # DBテーブルを準備する
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        Base.metadata.create_all(bind=database_engine)
+        # Production schemas are managed by Alembic. Tests use an in-memory SQLite DB.
+        if database_engine.dialect.name == "sqlite":
+            Base.metadata.create_all(bind=database_engine)
         yield
 
     ticket_publisher = publisher or PubSubTicketPublisher(

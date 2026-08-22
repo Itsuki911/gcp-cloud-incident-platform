@@ -17,6 +17,13 @@ class TicketStatus(StrEnum):
     failed = "failed"
 
 
+# Event処理状態を表す
+class EventProcessingStatus(StrEnum):
+    processing = "processing"
+    completed = "completed"
+    failed = "failed"
+
+
 class TicketCreate(BaseModel):
     # 作成リクエスト用
     title: NonEmptyText

@@ -1,11 +1,11 @@
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text, Uuid
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from incident_platform.db import Base
-from incident_platform.schemas import TicketStatus
+from incident_platform.schemas import EventProcessingStatus, TicketStatus
 
 
 class Ticket(Base):
@@ -26,6 +26,29 @@ class Ticket(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+
+
+# Event処理履歴を保存する
+class ProcessedEvent(Base):
+    __tablename__ = "processed_events"
+
+    event_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(100))
+    ticket_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("tickets.id"), index=True)
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default=EventProcessingStatus.processing.value,
+    )
+    attempt_count: Mapped[int] = mapped_column(Integer, default=1)
+    first_received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 # 添付情報を保存する

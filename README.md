@@ -46,6 +46,16 @@ AI Workerは一般公開せず、Pub/SubのOIDC認証を使って呼び出しま
 
 構築・確認手順の詳細は[VPC・Private Networking手順](Google-Cli-command/VPC・Private%20Networking.md)を参照してください。
 
+### Phase 6: Pub/Sub信頼性・冪等性（2026-08-22完了）
+
+- 非2xx応答のRetry、Dead Letter Topicへの隔離、Push endpoint復旧後の配送成功を専用ラボで確認しました。
+- Workerは`processed_events`へ`event_id`、処理状態、試行回数、完了時刻、失敗分類を記録します。
+- Ticket行ロックと`event_id`主キーにより、同一Eventの順次・同時配送によるAI処理とDB更新の重複を防止します。
+- Migration `0003_processed_events`適用後にCloud Runを更新し、正常経路と失敗後の再試行を確認しました。
+- ラボResourceは削除済みです。Publish最終失敗は監査付き再Publishで対応し、Outbox Patternを将来改善とします。
+
+実施結果と再処理手順は[Pub/Sub Reliability and Idempotency手順](Google-Cli-command/Pub-Sub-Reliability-and-Idempotency.md)を参照してください。
+
 ## Cloud Run
 
 - API: <https://incident-platform-888088780947.asia-northeast1.run.app>
@@ -184,6 +194,8 @@ uv run alembic downgrade -1
 ```
 
 自動生成後は、`migrations/versions`に作られたファイルを確認してから適用してください。
+
+現在のheadは`0003_processed_events`です。`processed_events`を使用するWorkerは、対象DBへ`uv run alembic upgrade head`を適用してからデプロイしてください。
 
 起動状態は次のコマンドで確認します。
 

@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -19,8 +19,8 @@ from incident_platform.ai_worker import (
     Severity,
     TicketAnalysis,
 )
-from incident_platform.models import Ticket
-from incident_platform.schemas import TicketStatus
+from incident_platform.models import ProcessedEvent, Ticket
+from incident_platform.schemas import EventProcessingStatus, TicketStatus
 from incident_platform.worker import create_worker_app
 
 
@@ -70,10 +70,10 @@ def worker_client() -> Iterator[tuple[TestClient, sessionmaker[Session], StubAna
 
 
 # Push通知本文を作る
-def push_body(ticket_id: UUID) -> dict[str, object]:
+def push_body(ticket_id: UUID, event_id: UUID | None = None) -> dict[str, object]:
     event = {
         "schema_version": "1",
-        "event_id": str(uuid4()),
+        "event_id": str(event_id or uuid4()),
         "event_type": "ticket.created",
         "ticket_id": str(ticket_id),
         "created_at": datetime.now(UTC).isoformat(),
@@ -110,6 +110,12 @@ def test_worker_updates_ticket(
         assert saved.severity == "high"
         assert saved.summary == "ログイン機能でエラーが発生しています。"
         assert saved.status == TicketStatus.completed.value
+        processed_event = session.scalar(select(ProcessedEvent))
+        assert processed_event is not None
+        assert processed_event.status == EventProcessingStatus.completed.value
+        assert processed_event.attempt_count == 1
+        assert processed_event.completed_at is not None
+        assert processed_event.last_error is None
 
 
 # 再配信が重複処理されないことを確認
@@ -123,6 +129,10 @@ def test_worker_acks_completed_ticket(
     assert client.post("/pubsub/tickets", json=body).status_code == 204
     assert client.post("/pubsub/tickets", json=body).status_code == 204
     assert analyzer.calls == 1
+    with session_factory() as session:
+        processed_event = session.scalar(select(ProcessedEvent))
+        assert processed_event is not None
+        assert processed_event.attempt_count == 1
 
 
 # AI障害時の再試行応答を確認
@@ -137,19 +147,70 @@ def test_worker_returns_500_and_rolls_back() -> None:
         autoflush=False,
         expire_on_commit=False,
     )
+    event_id = uuid4()
+    body: dict[str, object]
     application = create_worker_app(database_engine, session_factory, FailingAnalyzer())
 
     with TestClient(application) as client:
         ticket = create_ticket(session_factory)
-        response = client.post("/pubsub/tickets", json=push_body(ticket.id))
+        body = push_body(ticket.id, event_id)
+        response = client.post("/pubsub/tickets", json=body)
 
     assert response.status_code == 500
     with session_factory() as session:
         saved = session.get(Ticket, ticket.id)
         assert saved is not None
         assert saved.status == TicketStatus.queued.value
+        processed_event = session.get(ProcessedEvent, event_id)
+        assert processed_event is not None
+        assert processed_event.status == EventProcessingStatus.failed.value
+        assert processed_event.attempt_count == 1
+        assert processed_event.last_error == "RuntimeError"
+
+    retry_analyzer = StubAnalyzer()
+    retry_application = create_worker_app(database_engine, session_factory, retry_analyzer)
+    with TestClient(retry_application) as client:
+        response = client.post("/pubsub/tickets", json=body)
+
+    assert response.status_code == 204
+    assert retry_analyzer.calls == 1
+    with session_factory() as session:
+        processed_event = session.get(ProcessedEvent, event_id)
+        assert processed_event is not None
+        assert processed_event.status == EventProcessingStatus.completed.value
+        assert processed_event.attempt_count == 2
+        assert processed_event.completed_at is not None
+        assert processed_event.last_error is None
 
     database_engine.dispose()
+
+
+# Event ID衝突を拒否する
+def test_worker_rejects_conflicting_event_id(
+    worker_client: tuple[TestClient, sessionmaker[Session], StubAnalyzer],
+) -> None:
+    client, session_factory, analyzer = worker_client
+    first_ticket = create_ticket(session_factory)
+    second_ticket = create_ticket(session_factory)
+    event_id = uuid4()
+
+    first_response = client.post(
+        "/pubsub/tickets",
+        json=push_body(first_ticket.id, event_id),
+    )
+    second_response = client.post(
+        "/pubsub/tickets",
+        json=push_body(second_ticket.id, event_id),
+    )
+
+    assert first_response.status_code == 204
+    assert second_response.status_code == 400
+    assert second_response.json() == {"detail": "Conflicting event identifier"}
+    assert analyzer.calls == 1
+    with session_factory() as session:
+        second_saved = session.get(Ticket, second_ticket.id)
+        assert second_saved is not None
+        assert second_saved.status == TicketStatus.queued.value
 
 
 # 不正通知を拒否することを確認

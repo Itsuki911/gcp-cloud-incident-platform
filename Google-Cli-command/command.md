@@ -127,7 +127,7 @@ Invoke-RestMethod -Method Post -Uri "https://incident-platform-888088780947.asia
 
 
 ・Cloud SQL インスタンスの運用
-一時停止R
+一時停止
 gcloud sql instances patch incident-db --activation-policy=NEVER
 
 再起動

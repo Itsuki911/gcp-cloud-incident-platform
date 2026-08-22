@@ -14,12 +14,12 @@
 ユーザー
   ↓ POST /tickets
 Incident API（Cloud Run）
-  ├─ Cloud SQLへ保存
+  ├─ Direct VPC egress → Cloud SQL Private IPへ保存
   └─ ticket_idをPub/SubへPublish
                  ↓
           AI Worker（Cloud Run）
-            ├─ Vertex AIを呼び出す
-            └─ Cloud SQLを更新
+            ├─ Direct VPC egress → Cloud SQL Private IPを更新
+            └─ Vertex AIを呼び出す
 ```
 
 | GCPサービス | 用途 |
@@ -31,8 +31,20 @@ Incident API（Cloud Run）
 | Secret Manager | DB接続情報を管理 |
 | Cloud Build | ソースからコンテナをビルド |
 | Artifact Registry | ビルドしたコンテナを保存 |
+| VPC / Private Service Access | Cloud RunからCloud SQLへのPrivate経路を提供 |
 
 AI Workerは一般公開せず、Pub/SubのOIDC認証を使って呼び出します。Pub/Subは最大5回まで再配信し、処理できない通知をDead Letter Topicへ送ります。
+
+### Phase 5: VPC・Private Networking（2026-08-22完了）
+
+- `incident-vpc`とCloud Run用Subnet `10.20.0.0/24`を作成しました。
+- Private Service Accessへ`10.30.0.0/24`を割り当て、Cloud SQLはPrivate IP `10.30.0.3`だけで稼働しています。
+- Incident APIとAI WorkerはDirect VPC egressの`private-ranges-only`を使用し、Private接続用Secretを参照します。
+- 旧Cloud SQL Unix socket設定を削除し、Incident APIのIngressは`all`、AI Workerは`internal`に設定しました。
+- Public IPを無効化した状態で、APIの読み書き、Pub/Sub Push、Worker、Vertex AI、DB更新の成功を確認しました。
+- Private構成が正常に稼働したため、[Rollback手順](Google-Cli-command/VPC・Private%20Networking.md#15-rollback)は実行していません。
+
+構築・確認手順の詳細は[VPC・Private Networking手順](Google-Cli-command/VPC・Private%20Networking.md)を参照してください。
 
 ## Cloud Run
 
@@ -207,12 +219,17 @@ Incident APIをデプロイします。
 
 ```powershell
 gcloud run deploy incident-platform `
+  --project=gcp-cloud-incident-platform `
   --source . `
   --region=asia-northeast1 `
   --service-account=incident-platform-run@gcp-cloud-incident-platform.iam.gserviceaccount.com `
-  --add-cloudsql-instances=gcp-cloud-incident-platform:asia-northeast1:incident-db `
-  --set-secrets=DATABASE_URL=incident-database-url:2 `
+  --network=incident-vpc `
+  --subnet=incident-subnet-asia-northeast1 `
+  --vpc-egress=private-ranges-only `
+  --clear-cloudsql-instances `
+  --set-secrets=DATABASE_URL=incident-database-url-private:latest `
   --set-env-vars=APP_ENV=production,GOOGLE_CLOUD_PROJECT=gcp-cloud-incident-platform,PUBSUB_TOPIC=incident-tickets,ATTACHMENT_BUCKET=gcp-cloud-incident-platform-ticket-attachments-888088780947 `
+  --ingress=all `
   --allow-unauthenticated
 ```
 
@@ -220,15 +237,20 @@ AI Workerをデプロイします。
 
 ```powershell
 gcloud run deploy incident-worker `
+  --project=gcp-cloud-incident-platform `
   --source . `
   --region=asia-northeast1 `
   --service-account=incident-worker-run@gcp-cloud-incident-platform.iam.gserviceaccount.com `
-  --add-cloudsql-instances=gcp-cloud-incident-platform:asia-northeast1:incident-db `
-  --set-secrets=DATABASE_URL=incident-database-url:latest `
+  --network=incident-vpc `
+  --subnet=incident-subnet-asia-northeast1 `
+  --vpc-egress=private-ranges-only `
+  --clear-cloudsql-instances `
+  --set-secrets=DATABASE_URL=incident-database-url-private:latest `
   --set-env-vars=APP_ENV=production,GOOGLE_CLOUD_PROJECT=gcp-cloud-incident-platform,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-2.5-flash-lite `
   --command=uvicorn `
   --args=incident_platform.worker:app,--host,0.0.0.0,--port,8080 `
   --timeout=600 `
+  --ingress=internal `
   --no-allow-unauthenticated
 ```
 

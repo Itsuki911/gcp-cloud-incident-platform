@@ -32,3 +32,18 @@ APIのエンドポイントでは、定義がわかるようにすごく簡潔�
 ・MCPを使用した場合は使用したMCPサーバーを箇条書きで書く。
 ・今回実装した部分の処理フローを簡潔にまとめる。
 ・必要最低限の人間が確認するべき項目一覧
+
+
+ipAddresses:
+- ipAddress: 35.200.23.77
+  type: PRIMARY
+- ipAddress: 34.146.177.19
+  type: OUTGOING
+- ipAddress: 10.30.0.3
+  type: PRIVATE
+settings:
+  ipConfiguration:
+    ipv4Enabled: true
+    privateNetwork: projects/gcp-cloud-incident-platform/global/networks/incident-vpc
+state: RUNNABLE
+
